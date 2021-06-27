@@ -9,9 +9,9 @@ dataSources:
     name: DaoFactory
     network: mainnet
     source:
-      address: "0xfa6186d6058f619d2B81d4F33aE89AB9b8988026"
+      address: "0xf44e53e7474588494b3bec75898278050d99a8ce"
       abi: DaoFactory
-      startBlock: 17
+      startBlock: 12599262
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.4
@@ -25,6 +25,28 @@ dataSources:
         - event: DAOCreated(address,string)
           handler: handleDaoCreated
       file: ./mappings/core/dao-factory-mapping.ts
+
+  # ====================================== Adapter: CouponOnboarding ====================================
+  - kind: ethereum/contract
+    name: CouponOnboarding
+    network: mainnet
+    source:
+      address: "0xC3718BAAA733dA19645c358930f06e3f8fD4e2b3"
+      abi: CouponOnboardingContract
+      startBlock: 12605947
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.4
+      language: wasm/assemblyscript
+      entities:
+        - Coupon
+      abis:
+        - name: CouponOnboardingContract
+          file: ../build/contracts/CouponOnboardingContract.json
+      eventHandlers:
+        - event: CouponRedeemed(address,uint256,address,uint256)
+          handler: handleCouponRedeemed
+      file: ./mappings/adapters/coupon-onboarding-mapping.ts
 
 templates:
   # ====================================== DaoRegistry ====================================
@@ -46,20 +68,20 @@ templates:
       abis:
         - name: DaoRegistry
           file: ../build/contracts/DaoRegistry.json
-        - name: OnboardingContract
-          file: ../build/contracts/OnboardingContract.json
-        - name: DistributeContract
-          file: ../build/contracts/DistributeContract.json
-        - name: TributeContract
-          file: ../build/contracts/TributeContract.json
+        # - name: OnboardingContract
+        #   file: ../build/contracts/OnboardingContract.json
+        # - name: DistributeContract
+        #   file: ../build/contracts/DistributeContract.json
+        # - name: TributeContract
+        #   file: ../build/contracts/TributeContract.json
         - name: TributeNFTContract
           file: ../build/contracts/TributeNFTContract.json
         - name: ManagingContract
           file: ../build/contracts/ManagingContract.json
         - name: GuildKickContract
           file: ../build/contracts/GuildKickContract.json
-        - name: FinancingContract
-          file: ../build/contracts/FinancingContract.json
+        # - name: FinancingContract
+        #   file: ../build/contracts/FinancingContract.json
         - name: OffchainVotingContract
           file: ../build/contracts/OffchainVotingContract.json
         - name: VotingContract

@@ -94,20 +94,20 @@ ${couponOnboardingYAML({
         abis:
           - name: DaoRegistry
             file: ../build/contracts/DaoRegistry.json
-          - name: OnboardingContract
-            file: ../build/contracts/OnboardingContract.json
-          - name: DistributeContract
-            file: ../build/contracts/DistributeContract.json
-          - name: TributeContract
-            file: ../build/contracts/TributeContract.json
+        # - name: OnboardingContract
+        #   file: ../build/contracts/OnboardingContract.json
+        # - name: DistributeContract
+        #   file: ../build/contracts/DistributeContract.json
+        # - name: TributeContract
+        #   file: ../build/contracts/TributeContract.json
           - name: TributeNFTContract
             file: ../build/contracts/TributeNFTContract.json
           - name: ManagingContract
             file: ../build/contracts/ManagingContract.json
           - name: GuildKickContract
             file: ../build/contracts/GuildKickContract.json
-          - name: FinancingContract
-            file: ../build/contracts/FinancingContract.json
+        # - name: FinancingContract
+        #   file: ../build/contracts/FinancingContract.json
           - name: OffchainVotingContract
             file: ../build/contracts/OffchainVotingContract.json
           - name: VotingContract
