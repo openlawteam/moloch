@@ -36,6 +36,7 @@ const {
   unitPrice,
   numberOfUnits,
   maximumChunks,
+  maxAmount,
   ETH_TOKEN,
   UNITS,
 } = require("./ContractUtil");
@@ -52,7 +53,7 @@ const { expectRevert } = require("@openzeppelin/test-helpers");
 const { expect } = require("chai");
 
 const deployFunction = async (contractInterface, args, from) => {
-  if (!contractInterface) throw Error("Invalid contract interface");
+  if (!contractInterface) throw Error("undefined contract interface");
   const f = from ? from : accounts[0];
   if (args) {
     return await contractInterface.new(...args, { from: f });
@@ -82,6 +83,7 @@ const getDefaultOptions = (options) => {
     gracePeriod: 1,
     tokenAddr: ETH_TOKEN,
     maxChunks: maximumChunks,
+    maxAmount,
     chainId: 1,
     maxExternalTokens: 100,
     couponCreatorAddress: "0x7D8cad0bbD68deb352C33e80fccd4D8e88b4aBb8",

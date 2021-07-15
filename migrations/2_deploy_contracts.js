@@ -5,6 +5,7 @@ const {
   maximumChunks,
   unitPrice,
   numberOfUnits,
+  maxAmount,
 } = require("../utils/ContractUtil.js");
 
 const { deployDao, getNetworkDetails } = require("../utils/DeploymentUtil.js");
@@ -98,6 +99,7 @@ const deployRinkebyDao = async (deployFunction, network, truffleImports) => {
   return await deployDao({
     ...truffleImports,
     deployFunction,
+    maxAmount,
     unitPrice: toBN(toWei("100", "finney")),
     nbUnits: toBN("100000"),
     tokenAddr: ETH_TOKEN,

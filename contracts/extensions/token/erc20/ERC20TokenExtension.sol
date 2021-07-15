@@ -7,12 +7,9 @@ import "../../../guards/AdapterGuard.sol";
 import "../../../utils/PotentialNewMember.sol";
 import "../../IExtension.sol";
 import "../../bank/Bank.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
+import "./IERC20TransferStrategy.sol";
+import "../../../guards/AdapterGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/Context.sol";
-import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Pausable.sol";
 
 /**
 MIT License
@@ -52,13 +49,6 @@ contract ERC20Extension is
 {
     // The DAO address that this extension belongs to
     DaoRegistry public dao;
-
-    // The custom configuration to set the transfer type, e.g:
-    // (0: transfers are enabled only between dao members)
-    // (1: transfers are enabled between dao members and external accounts)
-    // (2: all transfers are paused)
-    bytes32 public constant ERC20_EXT_TRANSFER_TYPE =
-        keccak256("erc20ExtTransferType");
 
     // Internally tracks deployment under eip-1167 proxy pattern
     bool public initialized = false;
@@ -247,43 +237,26 @@ contract ERC20Extension is
     function transfer(address recipient, uint256 amount)
         public
         override
-        reentrancyGuard(dao)
         returns (bool)
     {
-        address senderAddr = dao.getAddressIfDelegated(msg.sender);
-        require(
-            isNotZeroAddress(recipient),
-            "ERC20: transfer to the zero address"
-        );
-
-        BankExtension bank = BankExtension(dao.getExtensionAddress(BANK));
-        require(
-            bank.balanceOf(senderAddr, tokenAddress) >= amount && amount > 0,
-            "sender does not have units to transfer"
-        );
-
-        uint256 transferType = dao.getConfiguration(ERC20_EXT_TRANSFER_TYPE);
-        if (transferType == 0) {
-            // members only transfer
-            require(dao.isMember(recipient), "recipient is not a member");
-            bank.internalTransfer(senderAddr, recipient, tokenAddress, amount);
-            emit Transfer(senderAddr, recipient, amount);
-            return true;
-        } else if (transferType == 1) {
-            // external transfer
-            require(
-                isNotReservedAddress(recipient),
-                "recipient address can not be reserved"
+        return
+            transferFrom(
+                dao.getAddressIfDelegated(msg.sender),
+                recipient,
+                amount
             );
-            bank.internalTransfer(senderAddr, recipient, tokenAddress, amount);
-            potentialNewMember(recipient, dao, bank);
-            emit Transfer(senderAddr, recipient, amount);
-            return true;
-        } else if (transferType == 2) {
-            // closed/paused transfers
-            return false;
-        }
-        return false;
+    }
+
+    function _transferInternal(
+        address senderAddr,
+        address recipient,
+        uint256 amount,
+        BankExtension bank
+    ) internal {
+        potentialNewMember(recipient, dao, bank);
+        bank.internalTransfer(senderAddr, recipient, tokenAddress, amount);
+
+        emit Transfer(senderAddr, recipient, amount);
     }
 
     /**
@@ -303,51 +276,54 @@ contract ERC20Extension is
         address sender,
         address recipient,
         uint256 amount
-    ) public override reentrancyGuard(dao) returns (bool) {
+    ) public override returns (bool) {
         require(
             isNotZeroAddress(recipient),
-            "ERC20: transferFrom recipient can not be zero address"
+            "ERC20: transfer to the zero address"
         );
 
-        address senderAddr = dao.getAddressIfDelegated(sender);
-        uint256 currentAllowance = _allowances[senderAddr][msg.sender];
-        //check if sender has approved msg.sender to spend amount
-        require(
-            currentAllowance >= amount,
-            "ERC20: transfer amount exceeds allowance"
-        );
+        IERC20TransferStrategy strategy =
+            IERC20TransferStrategy(dao.getAdapterAddress(TRANSFER_STRATEGY));
+        (
+            IERC20TransferStrategy.ApprovalType approvalType,
+            uint256 allowedAmount
+        ) =
+            strategy.evaluateTransfer(
+                dao,
+                tokenAddress,
+                sender,
+                recipient,
+                amount,
+                msg.sender
+            );
 
         BankExtension bank = BankExtension(dao.getExtensionAddress(BANK));
-        require(
-            bank.balanceOf(senderAddr, tokenAddress) >= amount && amount > 0,
-            "bank does not have enough units to transfer"
-        );
 
-        uint256 transferType = dao.getConfiguration(ERC20_EXT_TRANSFER_TYPE);
-        if (transferType == 0) {
-            // members only transfer
-            require(dao.isMember(recipient), "recipient is not a member");
+        if (approvalType == IERC20TransferStrategy.ApprovalType.NONE) {
+            revert("transfer not allowed");
+        }
 
-            _allowances[senderAddr][msg.sender] = currentAllowance - amount;
-
-            bank.internalTransfer(senderAddr, recipient, tokenAddress, amount);
-            emit Transfer(senderAddr, recipient, amount);
-
+        if (approvalType == IERC20TransferStrategy.ApprovalType.SPECIAL) {
+            _transferInternal(sender, recipient, amount, bank);
             return true;
-        } else if (transferType == 1) {
-            // external transfer
-            _allowances[senderAddr][msg.sender] = currentAllowance - amount;
+        }
+
+        if (sender != msg.sender) {
+            uint256 currentAllowance = _allowances[sender][msg.sender];
+            //check if sender has approved msg.sender to spend amount
             require(
-                isNotReservedAddress(recipient),
-                "recipient address can not be reserved"
+                currentAllowance >= amount,
+                "ERC20: transfer amount exceeds allowance"
             );
-            bank.internalTransfer(senderAddr, recipient, tokenAddress, amount);
-            potentialNewMember(recipient, dao, bank);
-            emit Transfer(senderAddr, recipient, amount);
+
+            if (allowedAmount >= amount) {
+                _allowances[sender][msg.sender] = currentAllowance - amount;
+            }
+        }
+
+        if (allowedAmount >= amount) {
+            _transferInternal(sender, recipient, amount, bank);
             return true;
-        } else if (transferType == 2) {
-            // closed/paused transfers
-            return false;
         }
 
         return false;

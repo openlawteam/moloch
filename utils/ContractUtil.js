@@ -49,6 +49,7 @@ const numberOfUnits = toBN("1000000000000000");
 const unitPrice = toBN(toWei("120", "finney"));
 const remaining = unitPrice.sub(toBN("50000000000000"));
 const maximumChunks = toBN("11");
+const maxAmount = toBN("10000000000000000000");
 
 module.exports = {
   sha3,
@@ -61,6 +62,7 @@ module.exports = {
   toUtf8,
   toHex,
   maximumChunks,
+  maxAmount,
   numberOfUnits,
   unitPrice,
   remaining,
