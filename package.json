@@ -32,6 +32,7 @@
     "@openzeppelin/test-helpers": "^0.5.10",
     "@smartdec/smartcheck": "^2.0.1",
     "chai": "^4.3.4",
+    "commander": "^8.0.0",
     "dotenv": "^8.2.0",
     "eth-gas-reporter": "^0.2.22",
     "install": "^0.13.0",
