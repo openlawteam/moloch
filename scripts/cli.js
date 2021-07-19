@@ -3,7 +3,9 @@
 require("dotenv").config({ path: "../.env" });
 const fs = require("fs");
 const { ethers } = require("ethers");
-const { program } = require("commander");
+const { Command } = require("commander");
+const { sha3 } = require("../utils/ContractUtil");
+const program = new Command();
 program.version("0.0.1");
 
 const supportedContracts = ["ManagingContract"];
@@ -45,38 +47,78 @@ const getContract = (name, network, address) => {
   );
 };
 
-const main = async () => {
+const main = () => {
   program.option(
-    "-N, --network <rinkeby|mainnet|ropsten>",
-    "The Ethereum Network which CLI should interact with"
+    "-N, --network <mainnet|rinkeby|ropsten|ganache>",
+    "The Ethereum Network which CLI should interact with."
+  );
+  program.option(
+    "-D, --dao <0x...>",
+    "The DAO address which CLI should interact with."
+  );
+  program.option(
+    "-C, --contract <contract>",
+    "The 42 digits startign with 0x contract address which CLI should interact with."
   );
 
   program
-    .command("list-contracts")
-    .description("List all available contracts which CLI can interact with")
-    .action(() => console.log(supportedContracts));
+    .command("list")
+    .description("List all available contracts which CLI can interact with.")
+    .action(() => supportedContracts.map((c) => console.log(c)));
 
   program
-    .command("managing proposal <proposalId> <address>")
-    .description(
-      "Submit a deposit of specified currency and amount from default eth account and return the resulting note. The currency is one of (ETH|DAI|cDAI|USDC|cUSDC|USDT). The amount depends on currency, see config.js file or visit https://tornado.cash."
+    .command(
+      "adapter-add <proposalId> <adapterId> <adapterAddress> <keys> <values> [data]"
     )
-    .action(async (proposalId, address) => {
-      const c = getContract(
-        "ManagingContract",
-        program.network,
-        "0x636c63878c6ea0C44747644CB21205896939fa8c"
-      );
-      console.log(c);
-    });
+    .description("Submit a new managing proposal...")
+    .action(
+      async (proposalId, adapterName, adapterAddress, keys, values, data) => {
+        const opts = program.opts();
+        console.log(`::: New managing proposal :::`);
+        console.log(
+          `\tNetwork:\t\t${opts.network}\n\tDAO:\t\t${opts.dao}`
+        );
+        console.log(`\tManagingContract:\t${opts.contract}`);
+        console.log(
+          `\tProposalId: ${proposalId},\tAdapter: ${adapterName}@${adapterAddress}`
+        );
+        console.log(`\tKeys: ${keys},\tValues: ${values},\tData: ${data}`);
+        
+        const managing = getContract(
+          "ManagingContract",
+          opts.network,
+          opts.contract
+        );
+        const { flags } = entryDao(
+          adapterName,
+          { address: adapterAddress },
+          {
+            SUBMIT_PROPOSAL: true,
+            REPLACE_ADAPTER: true,
+          }
+        );
+        await managing.submitProposal(
+          daoAddress,
+          toHex(proposalId),
+          {
+            adapterId: sha3(adapterName),
+            adapterAddress: adapterAddress,
+            flags,
+          },
+          [], // 3 keys
+          [], // 0 values
+          []
+        );
+      }
+    );
 
-  try {
-    await program.parseAsync(process.argv);
-    process.exit(0);
-  } catch (e) {
-    console.log("Error:", e);
-    process.exit(1);
-  }
+  program
+    .parseAsync(process.argv)
+    .then(() => process.exit(0))
+    .catch((e) => {
+      console.log("Error:", e);
+      process.exit(1);
+    });
 };
 
 main();
