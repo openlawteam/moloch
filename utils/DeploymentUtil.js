@@ -916,6 +916,16 @@ const entryExecutor = (contract, flags) => {
   };
 };
 
+const daoAccessFlags = [
+  "REPLACE_ADAPTER",
+  "SUBMIT_PROPOSAL",
+  "UPDATE_DELEGATE_KEY",
+  "SET_CONFIGURATION",
+  "ADD_EXTENSION",
+  "REMOVE_EXTENSION",
+  "NEW_MEMBER",
+];
+
 const entryDao = (name, contract, flags) => {
   const values = [
     flags.REPLACE_ADAPTER,
@@ -983,5 +993,6 @@ module.exports = {
   entryBank,
   entryDao,
   entryExecutor,
+  daoAccessFlags,
   getNetworkDetails,
 };

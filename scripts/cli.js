@@ -3,8 +3,15 @@
 require("dotenv").config({ path: "../.env" });
 const fs = require("fs");
 const { ethers } = require("ethers");
+const {
+  sha3,
+  fromAscii,
+  hexToBytes,
+  toProposalId,
+} = require("../utils/ContractUtil");
+const { entryDao, daoAccessFlags } = require("../utils/DeploymentUtil");
+
 const { Command } = require("commander");
-const { sha3 } = require("../utils/ContractUtil");
 const program = new Command();
 program.version("0.0.1");
 
@@ -21,6 +28,11 @@ const openWallet = (provider) => {
 };
 
 const getProvider = (network) => {
+  if (network === "ganache") {
+    return new ethers.providers.JsonRpcProvider({
+      host: "http://localhost:7545",
+    });
+  }
   return ethers.getDefaultProvider(network, {
     infura: process.env.INFURA_KEY,
     alchemy: process.env.ALCHEMY_KEY,
@@ -53,7 +65,7 @@ const main = () => {
     "The Ethereum Network which CLI should interact with."
   );
   program.option(
-    "-D, --dao <0x...>",
+    "-D, --dao <0x>",
     "The DAO address which CLI should interact with."
   );
   program.option(
@@ -72,42 +84,59 @@ const main = () => {
     )
     .description("Submit a new managing proposal...")
     .action(
-      async (proposalId, adapterName, adapterAddress, keys, values, data) => {
+      async (
+        proposalId,
+        adapterName,
+        adapterAddress,
+        keys,
+        values,
+        acl,
+        data
+      ) => {
         const opts = program.opts();
         console.log(`::: New managing proposal :::`);
-        console.log(
-          `\tNetwork:\t\t${opts.network}\n\tDAO:\t\t${opts.dao}`
-        );
+        console.log(`\tNetwork:\t\t${opts.network}\n\tDAO:\t\t${opts.dao}`);
         console.log(`\tManagingContract:\t${opts.contract}`);
         console.log(
           `\tProposalId: ${proposalId},\tAdapter: ${adapterName}@${adapterAddress}`
         );
-        console.log(`\tKeys: ${keys},\tValues: ${values},\tData: ${data}`);
-        
+        console.log(`\tKeys: ${keys},\tValues: ${values}`);
+        console.log(`\tAccessFlags: ${acl}`);
+
+        const configKeys = keys.split(",").map((k) => fromAscii(k));
+        const configValues = values.split(",").map((v) => parseInt(v));
+        if (configKeys.length !== configValues.length) {
+          throw Error(`<keys> and <values> must have the exact same length`);
+        }
+
         const managing = getContract(
           "ManagingContract",
           opts.network,
           opts.contract
         );
+        const requestedAccess = acl.split(",").map((flag) => {
+          if (daoAccessFlags.includes(flag)) {
+            return { [flag]: true };
+          }
+          throw Error(`Invalid DAO Access Flag: ${flag}`);
+        });
+
         const { flags } = entryDao(
           adapterName,
           { address: adapterAddress },
-          {
-            SUBMIT_PROPOSAL: true,
-            REPLACE_ADAPTER: true,
-          }
+          requestedAccess
         );
         await managing.submitProposal(
-          daoAddress,
-          toHex(proposalId),
+          opts.dao,
+          toProposalId(proposalId),
           {
             adapterId: sha3(adapterName),
             adapterAddress: adapterAddress,
             flags,
           },
-          [], // 3 keys
-          [], // 0 values
-          []
+          configKeys,
+          configValues,
+          data
         );
       }
     );
