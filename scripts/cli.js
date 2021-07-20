@@ -3,12 +3,8 @@
 require("dotenv").config({ path: "../.env" });
 const fs = require("fs");
 const { ethers } = require("ethers");
-const {
-  sha3,
-  fromAscii,
-  hexToBytes,
-  toProposalId,
-} = require("../utils/ContractUtil");
+const toBytes32 = ethers.utils.formatBytes32String;
+const { sha3, fromAscii } = require("../utils/ContractUtil");
 const { entryDao, daoAccessFlags } = require("../utils/DeploymentUtil");
 
 const { Command } = require("commander");
@@ -29,8 +25,12 @@ const openWallet = (provider) => {
 
 const getProvider = (network) => {
   if (network === "ganache") {
+    // Using the same network config as truffle-config.js
     return new ethers.providers.JsonRpcProvider({
-      host: "http://localhost:7545",
+      url: "http://localhost:7545",
+      network: {
+        chainId: 1337,
+      },
     });
   }
   return ethers.getDefaultProvider(network, {
@@ -59,6 +59,18 @@ const getContract = (name, network, address) => {
   );
 };
 
+const parseFlags = (aclFlags) => {
+  return aclFlags
+    .split(",")
+    .map((f) => f.toUpperCase())
+    .reduce((flags, flag) => {
+      if (daoAccessFlags.includes(flag)) {
+        return { ...flags, [flag]: true };
+      }
+      throw Error(`Invalid DAO Access Flag: ${flag}`);
+    }, {});
+};
+
 const main = () => {
   program.option(
     "-N, --network <mainnet|rinkeby|ropsten|ganache>",
@@ -75,14 +87,14 @@ const main = () => {
 
   program
     .command("list")
-    .description("List all available contracts which CLI can interact with.")
+    .description("List all contracts to interact with.")
     .action(() => supportedContracts.map((c) => console.log(c)));
 
   program
     .command(
-      "adapter-add <proposalId> <adapterId> <adapterAddress> <keys> <values> [data]"
+      "adapter-add <proposalId> <adapterId> <adapterAddress> <keys> <values> <aclFlags> [data]"
     )
-    .description("Submit a new managing proposal...")
+    .description("Submit a new managing proposal.")
     .action(
       async (
         proposalId,
@@ -90,53 +102,45 @@ const main = () => {
         adapterAddress,
         keys,
         values,
-        acl,
+        aclFlags,
         data
       ) => {
         const opts = program.opts();
-        console.log(`::: New managing proposal :::`);
-        console.log(`\tNetwork:\t\t${opts.network}\n\tDAO:\t\t${opts.dao}`);
+        console.log(`New managing proposal`);
+        console.log(`\tNetwork:\t\t${opts.network}`);
+        console.log(`\tDAO:\t\t\t${opts.dao}`);
         console.log(`\tManagingContract:\t${opts.contract}`);
-        console.log(
-          `\tProposalId: ${proposalId},\tAdapter: ${adapterName}@${adapterAddress}`
-        );
-        console.log(`\tKeys: ${keys},\tValues: ${values}`);
-        console.log(`\tAccessFlags: ${acl}`);
+        console.log(`\tProposalId:\t\t${proposalId}`);
+        console.log(`\tAdapter:\t\t${adapterName} @ ${adapterAddress}`);
+        console.log(`\tAccessFlags:\t\t${aclFlags}`);
+        console.log(`\tKeys:\t\t\t${keys}`);
+        console.log(`\tValues:\t\t\t${values}`);
+        console.log(`\tData:\t\t\t${data}`);
 
-        const configKeys = keys.split(",").map((k) => fromAscii(k));
-        const configValues = values.split(",").map((v) => parseInt(v));
-        if (configKeys.length !== configValues.length) {
-          throw Error(`<keys> and <values> must have the exact same length`);
-        }
+        const configKeys = keys.split(",").map((k) => toBytes32(k));
+        const configValues = values.split(",").map((v) => v);
 
         const managing = getContract(
           "ManagingContract",
           opts.network,
           opts.contract
         );
-        const requestedAccess = acl.split(",").map((flag) => {
-          if (daoAccessFlags.includes(flag)) {
-            return { [flag]: true };
-          }
-          throw Error(`Invalid DAO Access Flag: ${flag}`);
-        });
 
-        const { flags } = entryDao(
-          adapterName,
-          { address: adapterAddress },
-          requestedAccess
-        );
         await managing.submitProposal(
           opts.dao,
-          toProposalId(proposalId),
+          toBytes32(proposalId),
           {
             adapterId: sha3(adapterName),
             adapterAddress: adapterAddress,
-            flags,
+            flags: entryDao(
+              adapterName,
+              { address: adapterAddress },
+              parseFlags(aclFlags)
+            ).flags,
           },
           configKeys,
           configValues,
-          data
+          data ? fromAscii(data) : []
         );
       }
     );
